@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BetAppist</title><link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header><div class="brand">BetAppist</div><div class="sub">Football data dashboard</div></header>
+<main>
+<section class="hero"><div><h1>Maç Merkezi</h1><p>Maçları, skorları ve oranları tek ekranda takip et.</p></div><button onclick="loadMatches()">Yenile</button></section>
+<div id="status" class="status">Veriler yükleniyor...</div>
+<section id="matches" class="grid"></section>
+</main>
+<script>
+async function loadMatches(){
+ const status=document.getElementById('status'), box=document.getElementById('matches');
+ status.textContent='Veriler yükleniyor...'; box.innerHTML='';
+ try{
+  const r=await fetch('/api/matches'); if(!r.ok) throw new Error('API '+r.status);
+  const data=await r.json();
+  status.textContent=data.length ? data.length+' maç bulundu' : 'Henüz maç verisi yok.';
+  box.innerHTML=data.map(m=>`<article class="card">
+   <div class="date">${m.kickoff_at ? new Date(m.kickoff_at).toLocaleString('tr-TR') : 'Tarih bekleniyor'}</div>
+   <div class="teams"><strong>${m.home_team}</strong><span>${m.home_score ?? '-'} : ${m.away_score ?? '-'}</span><strong>${m.away_team}</strong></div>
+   <div class="meta">Round ${m.round ?? '-'} · ${m.status ?? 'scheduled'}</div>
+  </article>`).join('');
+ }catch(e){status.textContent='Veri alınamadı: '+e.message;}
+}
+loadMatches();
+</script>
+</body></html>
