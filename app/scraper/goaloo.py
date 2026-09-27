@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 import json
-import json
 from urllib.parse import urljoin
 from app.config import settings
 from app.scraper.client import GoalooBrowser
@@ -9,7 +8,6 @@ from app.scraper.client import GoalooBrowser
 class RawPage:
     url: str
     html: str
-    payloads: list[dict] | None = None
     payloads: list[dict] | None = None
 
 class GoalooScraper:
@@ -24,9 +22,8 @@ class GoalooScraper:
         async with self.browser.page() as page:
             responses = []
             def capture(response):
-                ct = (response.headers.get("content-type") or "").lower()
                 u = response.url.lower()
-                if "json" in ct and ("goaloo" in u or "isportsapi" in u or "/api/" in u):
+                if any(token in u for token in ("goaloo", "isportsapi", "/api/", "livescore", "football")):
                     responses.append(response)
             page.on("response", capture)
             await page.goto(url, wait_until="domcontentloaded", timeout=settings.scraper_timeout_ms)
@@ -36,7 +33,7 @@ class GoalooScraper:
                 pass
             await page.wait_for_timeout(4_000)
             payloads = []
-            for response in responses[-80:]:
+            for response in responses[-160:]:
                 try:
                     body = await response.body()
                     if len(body) > 2_000_000:
