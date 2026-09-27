@@ -18,6 +18,10 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 live_cache: list[dict] = []
 live_cache_updated: str | None = None
+live_cache_error: str | None = None
+live_source_url: str | None = None
+live_html_bytes: int = 0
+live_rows: int = 0
 live_task: asyncio.Task | None = None
 
 @app.on_event("startup")
@@ -27,12 +31,16 @@ async def startup() -> None:
     live_task = asyncio.create_task(refresh_live_cache_loop())
 
 async def refresh_live_cache_loop() -> None:
-    global live_cache, live_cache_updated
+    global live_cache, live_cache_updated, live_cache_error, live_source_url, live_html_bytes, live_rows
     while True:
         scraper = GoalooScraper()
         try:
             raw = await scraper.fetch_live_fixtures()
             rows = GoalooParser().parse_schedule_html(raw.html, base_url=raw.url)
+            live_source_url = raw.url
+            live_html_bytes = len(raw.html)
+            live_rows = len(rows)
+            live_cache_error = None
             live_cache = [
                 {
                     "id": -abs(hash(row.goaloo_id)) % 2_000_000_000,
@@ -51,9 +59,9 @@ async def refresh_live_cache_loop() -> None:
                 for row in rows
             ]
             live_cache_updated = datetime.now(timezone.utc).isoformat()
-        except Exception:
-            # Keep the last successful cache; DB data remains available.
-            pass
+        except Exception as exc:
+            live_cache_error = f"{type(exc).__name__}: {exc}"
+        
         finally:
             await scraper.close()
         await asyncio.sleep(60)
@@ -65,7 +73,9 @@ def dashboard():
 @app.get("/health")
 def health():
     return {"status":"ok","service":"betappist","time":datetime.now(timezone.utc).isoformat(),
-            "live_cache":len(live_cache),"live_cache_updated":live_cache_updated}
+            "live_cache":len(live_cache),"live_cache_updated":live_cache_updated,
+            "live_cache_error":live_cache_error,"live_source_url":live_source_url,
+            "live_html_bytes":live_html_bytes,"live_rows":live_rows}
 
 def match_dict(db: Session, match: models.Match, home: models.Team, away: models.Team):
     odds_rows = db.execute(
@@ -114,6 +124,8 @@ def system(db: Session = Depends(get_db)):
             "national_teams":db.scalar(select(func.count(models.NationalTeam.id))) or 0 if hasattr(models,"NationalTeam") else 0,
             "odds":db.scalar(select(func.count(models.OddsSnapshot.id))) or 0,
             "live_cache":len(live_cache),"live_cache_updated":live_cache_updated,
+            "live_cache_error":live_cache_error,"live_source_url":live_source_url,
+            "live_html_bytes":live_html_bytes,"live_rows":live_rows,
             "last_scrape":{"status":latest.status,"started_at":latest.started_at.isoformat(),"finished_at":latest.finished_at.isoformat() if latest.finished_at else None,
                            "items_seen":latest.items_seen,"items_saved":latest.items_saved} if latest else None}
 
