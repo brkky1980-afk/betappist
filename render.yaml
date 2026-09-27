@@ -22,6 +22,6 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: GOALOO_BASE_URL
-        value: https://football.goaloo.com
+        value: https://www.goaloo.com
       - key: SCRAPER_HEADLESS
         value: "true"
