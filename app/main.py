@@ -1,4 +1,5 @@
 import asyncio
+import httpx
 from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import Depends, FastAPI, Query
@@ -22,6 +23,7 @@ live_cache_error: str | None = None
 live_source_url: str | None = None
 live_html_bytes: int = 0
 live_rows: int = 0
+live_source: str | None = None
 live_task: asyncio.Task | None = None
 
 @app.on_event("startup")
@@ -31,7 +33,7 @@ async def startup() -> None:
     live_task = asyncio.create_task(refresh_live_cache_loop())
 
 async def refresh_live_cache_loop() -> None:
-    global live_cache, live_cache_updated, live_cache_error, live_source_url, live_html_bytes, live_rows
+    global live_cache, live_cache_updated, live_cache_error, live_source_url, live_html_bytes, live_rows, live_source
     while True:
         scraper = GoalooScraper()
         try:
@@ -42,6 +44,19 @@ async def refresh_live_cache_loop() -> None:
                 rows = parser.parse_schedule_html(raw.html, base_url=raw.url)
             live_source_url = raw.url
             live_html_bytes = len(raw.html)
+            live_source = "goaloo"
+            if not rows:
+                leagues = ("eng.1", "esp.1", "ita.1", "ger.1", "fra.1", "tur.1", "uefa.champions")
+                async with httpx.AsyncClient(timeout=15, headers={"User-Agent": "BetAppist/1.0"}) as client:
+                    for league in leagues:
+                        try:
+                            resp = await client.get(f"https://site.api.espn.com/apis/site/v2/sports/soccer/{league}/scoreboard")
+                            if resp.status_code == 200:
+                                rows.extend(parser.parse_espn_payload(resp.json(), f"https://site.api.espn.com/{league}"))
+                        except Exception:
+                            continue
+                live_source = "espn-fallback"
+                live_source_url = "https://site.api.espn.com/apis/site/v2/sports/soccer/*/scoreboard"
             live_rows = len(rows)
             live_cache_error = None
             live_cache = [
