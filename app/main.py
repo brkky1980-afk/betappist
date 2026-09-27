@@ -125,7 +125,7 @@ async def debug_goaloo(
     try:
         raw = await scraper._fetch(url)
         parser = GoalooParser()
-        payload_rows = parser.parse_schedule_payloads(raw.payloads, base_url=raw.url)
+        payload_rows = parser.parse_legacy_schedule_payloads(raw.payloads, base_url=raw.url) or parser.parse_schedule_payloads(raw.payloads, base_url=raw.url)
         html_rows = parser.parse_schedule_html(raw.html, base_url=raw.url)
         rows = payload_rows or html_rows
         payload_summaries = []
