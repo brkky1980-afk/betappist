@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import json
+import json
 from urllib.parse import urljoin
 from app.config import settings
 from app.scraper.client import GoalooBrowser
@@ -8,6 +9,7 @@ from app.scraper.client import GoalooBrowser
 class RawPage:
     url: str
     html: str
+    payloads: list[dict] | None = None
     payloads: list[dict] | None = None
 
 class GoalooScraper:
