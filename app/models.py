@@ -81,3 +81,12 @@ class ScrapeRun(Base):
     items_seen: Mapped[int] = mapped_column(Integer, default=0)
     items_saved: Mapped[int] = mapped_column(Integer, default=0)
     error_text: Mapped[str | None] = mapped_column(Text)
+
+
+class NationalTeam(Base):
+    __tablename__ = "national_teams"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    country: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    code: Mapped[str] = mapped_column(String(8), unique=True, index=True)
+    confederation: Mapped[str | None] = mapped_column(String(40))
+    active: Mapped[bool] = mapped_column(default=True)
