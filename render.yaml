@@ -17,6 +17,7 @@ services:
     runtime: docker
     schedule: "15 2 * * *"
     plan: starter
+    dockerCommand: python -m app.jobs.sync
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -24,5 +25,3 @@ services:
         value: https://football.goaloo.com
       - key: SCRAPER_HEADLESS
         value: "true"
-    # Docker CMD is the default startup command; replace with a dedicated
-    # command after the database ingestion layer is enabled.
