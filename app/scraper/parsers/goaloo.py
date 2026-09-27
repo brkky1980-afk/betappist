@@ -139,6 +139,48 @@ class GoalooParser:
             )
         return list(found.values())
 
+    def parse_schedule_payloads(self, payloads: list[dict] | None, base_url: str | None = None) -> list[MatchRow]:
+        found = {}
+        if not payloads:
+            return []
+        status_map = {0:"scheduled",1:"live",2:"live",3:"live",4:"live",5:"live",-1:"finished",-10:"cancelled",-11:"scheduled",-12:"finished",-13:"live",-14:"scheduled"}
+        def walk(obj):
+            if isinstance(obj, dict):
+                mid = obj.get("matchId") or obj.get("matchID")
+                home = obj.get("homeName") or obj.get("homeTeamName")
+                away = obj.get("awayName") or obj.get("awayTeamName")
+                if mid is not None and home and away:
+                    yield obj
+                for value in obj.values():
+                    yield from walk(value)
+            elif isinstance(obj, list):
+                for value in obj:
+                    yield from walk(value)
+        for payload in payloads:
+            for obj in walk(payload):
+                mid = str(obj.get("matchId") or obj.get("matchID"))
+                if not mid.isdigit() or mid in found:
+                    continue
+                try:
+                    status = status_map.get(int(obj.get("status")), "scheduled")
+                except (TypeError, ValueError):
+                    status = str(obj.get("status") or "scheduled").lower()
+                ts = obj.get("matchTime")
+                kickoff = None
+                if ts:
+                    try:
+                        value = int(ts)
+                        kickoff = datetime.fromtimestamp(value / 1000 if value > 10000000000 else value)
+                    except (TypeError, ValueError, OSError):
+                        pass
+                def to_int(value):
+                    try:
+                        return int(value) if value is not None else None
+                    except (TypeError, ValueError):
+                        return None
+                found[mid] = MatchRow(mid, None, str(obj.get("homeName") or obj.get("homeTeamName")), str(obj.get("awayName") or obj.get("awayTeamName")), to_int(obj.get("homeScore")), to_int(obj.get("awayScore")), to_int(obj.get("homeHalfScore")), to_int(obj.get("awayHalfScore")), source_url=f"{base_url.rstrip('/')}/football/match/live-{mid}" if base_url else None, kickoff_at=kickoff, status=status)
+        return list(found.values())
+
     def parse_analysis_html(self, html: str) -> list[OddsRow]:
         soup = BeautifulSoup(html, "lxml")
         now = datetime.now(timezone.utc)
