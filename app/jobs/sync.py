@@ -23,8 +23,8 @@ def get_or_create(session: Session, model, defaults=None, **lookup):
 
 def save_match(session: Session, row, season: Season) -> Match:
     match = session.scalar(select(Match).where(Match.goaloo_id == row.goaloo_id))
-    home = get_or_create(session, Team, name=row.home_team, goaloo_id=None)
-    away = get_or_create(session, Team, name=row.away_team, goaloo_id=None)
+    home = get_or_create(session, Team, name=row.home_team)
+    away = get_or_create(session, Team, name=row.away_team)
     if match is None:
         match = Match(goaloo_id=row.goaloo_id, season_id=season.id, home_team_id=home.id, away_team_id=away.id)
         session.add(match)
@@ -37,6 +37,7 @@ def save_match(session: Session, row, season: Season) -> Match:
     match.away_score = row.away_score
     match.home_ht_score = row.home_ht_score
     match.away_ht_score = row.away_ht_score
+    match.status = "finished" if row.home_score is not None and row.away_score is not None else "scheduled"
     session.flush()
     return match
 
@@ -68,8 +69,11 @@ async def run(rounds: list[int]) -> None:
     try:
         with SessionLocal() as session:
             country = get_or_create(session, Country, name="England")
-            league = get_or_create(session, League, country_id=country.id, name="Premier League", goaloo_id="36", defaults={"source_url": settings.goaloo_base_url + settings.goaloo_league_path})
-            season = get_or_create(session, Season, league_id=league.id, name="2024-2025")
+            league = get_or_create(
+                session, League, country_id=country.id, name="Premier League", goaloo_id="36",
+                defaults={"source_url": settings.goaloo_base_url + settings.goaloo_league_path},
+            )
+            season = get_or_create(session, Season, league_id=league.id, name=settings.goaloo_season)
             session.commit()
             for round_no in rounds:
                 raw = await scraper.fetch_schedule(round_no)
@@ -107,7 +111,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--round", dest="rounds", type=int, action="append")
     args = ap.parse_args()
-    asyncio.run(run(args.rounds or list(range(1, 39))))
+    asyncio.run(run(args.rounds or [settings.goaloo_round]))
 
 
 if __name__ == "__main__":
