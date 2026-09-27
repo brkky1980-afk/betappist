@@ -11,7 +11,6 @@ from app.models import Bookmaker, Country, League, Match, OddsSnapshot, Season, 
 from app.scraper.goaloo import GoalooScraper
 from app.scraper.parsers.goaloo import GoalooParser
 
-
 def get_or_create(session: Session, model, defaults=None, **lookup):
     obj = session.scalar(select(model).filter_by(**lookup))
     if obj is None:
@@ -19,7 +18,6 @@ def get_or_create(session: Session, model, defaults=None, **lookup):
         session.add(obj)
         session.flush()
     return obj
-
 
 def save_match(session: Session, row, season: Season) -> Match:
     match = session.scalar(select(Match).where(Match.goaloo_id == row.goaloo_id))
@@ -31,16 +29,16 @@ def save_match(session: Session, row, season: Season) -> Match:
     match.source_url = row.source_url
     match.season_id = season.id
     match.round = row.round
+    match.kickoff_at = row.kickoff_at
     match.home_team_id = home.id
     match.away_team_id = away.id
     match.home_score = row.home_score
     match.away_score = row.away_score
     match.home_ht_score = row.home_ht_score
     match.away_ht_score = row.away_ht_score
-    match.status = "finished" if row.home_score is not None and row.away_score is not None else "scheduled"
+    match.status = row.status
     session.flush()
     return match
-
 
 def save_odds(session: Session, match: Match, rows) -> int:
     saved = 0
@@ -56,7 +54,6 @@ def save_odds(session: Session, match: Match, rows) -> int:
         saved += 1
     return saved
 
-
 async def run(rounds: list[int]) -> None:
     Base.metadata.create_all(bind=engine)
     scraper = GoalooScraper()
@@ -69,10 +66,8 @@ async def run(rounds: list[int]) -> None:
     try:
         with SessionLocal() as session:
             country = get_or_create(session, Country, name="England")
-            league = get_or_create(
-                session, League, country_id=country.id, name="Premier League", goaloo_id="36",
-                defaults={"source_url": settings.goaloo_base_url + settings.goaloo_league_path},
-            )
+            league = get_or_create(session, League, country_id=country.id, name="Premier League", goaloo_id="36",
+                defaults={"source_url": settings.goaloo_base_url + settings.goaloo_league_path})
             season = get_or_create(session, Season, league_id=league.id, name=settings.goaloo_season)
             session.commit()
             for round_no in rounds:
@@ -106,7 +101,6 @@ async def run(rounds: list[int]) -> None:
     finally:
         await scraper.close()
 
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--round", dest="rounds", type=int, action="append")
@@ -120,10 +114,8 @@ def main() -> None:
         end = args.to_round or settings.goaloo_round
         rounds = list(range(start, end + 1))
     else:
-        # Keep historical rounds in the database instead of only the current round.
         rounds = list(range(1, settings.goaloo_round + 1))
     asyncio.run(run(rounds))
-
 
 if __name__ == "__main__":
     main()
