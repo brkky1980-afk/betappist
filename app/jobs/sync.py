@@ -110,8 +110,19 @@ async def run(rounds: list[int]) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--round", dest="rounds", type=int, action="append")
+    ap.add_argument("--from-round", type=int)
+    ap.add_argument("--to-round", type=int)
     args = ap.parse_args()
-    asyncio.run(run(args.rounds or [settings.goaloo_round]))
+    if args.rounds:
+        rounds = args.rounds
+    elif args.from_round is not None or args.to_round is not None:
+        start = args.from_round or 1
+        end = args.to_round or settings.goaloo_round
+        rounds = list(range(start, end + 1))
+    else:
+        # Keep historical rounds in the database instead of only the current round.
+        rounds = list(range(1, settings.goaloo_round + 1))
+    asyncio.run(run(rounds))
 
 
 if __name__ == "__main__":
