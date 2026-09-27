@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import re
+from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
 @dataclass(slots=True)
@@ -40,10 +41,10 @@ def decimal_or_none(value: str | None) -> Decimal | None:
         return None
 
 def ints(text: str) -> list[int]:
-    return [int(x) for x in re.findall(r"(?<!\\d)(\\d{1,2})(?!\\d)", text)]
+    return [int(x) for x in re.findall(r"(?<!\d)(\d{1,2})(?!\d)", text)]
 
 def _match_id_from_href(href: str) -> str | None:
-    m = re.search(r"(?:oddscomp|h2h|analysis|live|tips)-?(\\d{5,})", href or "")
+    m = re.search(r"(?:oddscomp|h2h|analysis|live|tips)-?(\d{5,})", href or "")
     return m.group(1) if m else None
 
 class GoalooParser:
@@ -61,7 +62,7 @@ class GoalooParser:
             if not cells:
                 continue
             text = " | ".join(cells)
-            score_pairs = re.findall(r"(?<!\\d)(\\d{1,2})\\s*[-:]\\s*(\\d{1,2})(?!\\d)", text)
+            score_pairs = re.findall(r"(?<!\d)(\d{1,2})\s*[-:]\s*(\d{1,2})(?!\d)", text)
             home = away = None
             if score_pairs:
                 home, away = map(int, score_pairs[0])
@@ -91,9 +92,7 @@ class GoalooParser:
                 continue
             raw = [c.get_text(" ", strip=True) for c in cells[1:]]
             whole = " | ".join(raw)
-            phases = [p for p in ("Initial", "Live", "In-Play") if p.lower() in whole.lower()]
-            numbers = re.findall(r"(?<![A-Za-z])[-+]?\\d+(?:[.,]\\d+)?(?![A-Za-z])", whole)
+            numbers = re.findall(r"(?<![A-Za-z])[-+]?\d+(?:[.,]\d+)?(?![A-Za-z])", whole)
             payload = {"cells": raw, "numbers": numbers, "text": whole}
-            for phase in phases or ["Initial"]:
-                rows.append(OddsRow(bookmaker, "UNKNOWN", phase.lower().replace("-", "_"), None, None, None, None, now, phase, payload))
+            rows.append(OddsRow(bookmaker, "UNKNOWN", "initial", None, None, None, None, now, "Initial", payload))
         return rows
