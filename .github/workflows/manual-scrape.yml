@@ -30,6 +30,6 @@ jobs:
       - name: Run Goaloo scrape
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GOALOO_BASE_URL: https://football.goaloo.com
+          GOALOO_BASE_URL: https://www.goaloo.com
           SCRAPER_HEADLESS: "true"
         run: python -m app.jobs.sync --round ${{ inputs.round }}
