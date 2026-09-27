@@ -44,7 +44,7 @@ def decimal_or_none(value: str | None) -> Decimal | None:
 
 def _match_id_from_href(href: str) -> str | None:
     for pattern in (
-        r"(?:oddscomp|h2h|analysis|live|tips|match|detail)[^0-9]*(\\d{5,})",
+        r"(?:oddscomp|h2h|analysis|live|tips|match|detail)[^0-9]*(\d{5,})",
         r"/(\d{6,})(?:[/?#]|$)",
     ):
         m = re.search(pattern, href or "", re.I)
