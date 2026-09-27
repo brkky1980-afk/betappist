@@ -2,13 +2,15 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db import Base, SessionLocal, engine
+from app.db import Base, engine, get_db
 from app import models  # noqa: F401
 
 app = FastAPI(title="BetAppist API", version="0.1.0")
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -29,7 +31,7 @@ def health() -> dict[str, str]:
 
 
 @app.get("/api/matches")
-def matches(db: Session = Depends(SessionLocal)):
+def matches(db: Session = Depends(get_db)):
     rows = db.execute(
         select(
             models.Match,
