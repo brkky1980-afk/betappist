@@ -10,9 +10,8 @@ from app.db import Base, engine, get_db
 from app import models  # noqa: F401
 
 app = FastAPI(title="BetAppist API", version="0.1.0")
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
-
 BASE_DIR = Path(__file__).resolve().parent
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
 @app.on_event("startup")
@@ -33,10 +32,7 @@ def health() -> dict[str, str]:
 @app.get("/api/matches")
 def matches(db: Session = Depends(get_db)):
     rows = db.execute(
-        select(
-            models.Match,
-            models.Team,
-        )
+        select(models.Match, models.Team)
         .join(models.Team, models.Team.id == models.Match.home_team_id)
         .order_by(models.Match.kickoff_at.asc().nulls_last(), models.Match.id.desc())
         .limit(100)
