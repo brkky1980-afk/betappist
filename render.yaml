@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: betappist-api
+    runtime: docker
+    plan: starter
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: GOALOO_BASE_URL
+        value: https://football.goaloo.com
+      - key: SCRAPER_HEADLESS
+        value: "true"
+    healthCheckPath: /health
+
+  - type: cron
+    name: betappist-daily-sync
+    runtime: docker
+    schedule: "15 2 * * *"
+    plan: starter
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: GOALOO_BASE_URL
+        value: https://football.goaloo.com
+      - key: SCRAPER_HEADLESS
+        value: "true"
+    # Docker CMD is the default startup command; replace with a dedicated
+    # command after the database ingestion layer is enabled.
