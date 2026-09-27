@@ -155,7 +155,8 @@ async def debug_goaloo(
             "html_rows": len(html_rows),
             "response_count": len(raw.response_meta or []),
             "responses": (raw.response_meta or [])[-80:],
-            "payload_summaries": payload_summaries,\n            "schedule_sample": schedule_samples,
+            "payload_summaries": payload_summaries,
+            "schedule_sample": schedule_samples,
             "rows": [
                 {
                     "goaloo_id": row.goaloo_id,
