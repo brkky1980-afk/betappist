@@ -181,6 +181,51 @@ class GoalooParser:
                 found[mid] = MatchRow(mid, None, str(obj.get("homeName") or obj.get("homeTeamName")), str(obj.get("awayName") or obj.get("awayTeamName")), to_int(obj.get("homeScore")), to_int(obj.get("awayScore")), to_int(obj.get("homeHalfScore")), to_int(obj.get("awayHalfScore")), source_url=f"{base_url.rstrip('/')}/football/match/live-{mid}" if base_url else None, kickoff_at=kickoff, status=status)
         return list(found.values())
 
+    def parse_espn_payload(self, payload: dict, base_url: str) -> list[MatchRow]:
+        found = {}
+        for event in payload.get("events", []) if isinstance(payload, dict) else []:
+            try:
+                comp = event.get("competitions", [])[0]
+                teams = {x.get("homeAway"): x for x in comp.get("competitors", [])}
+                home = teams.get("home")
+                away = teams.get("away")
+                if not home or not away:
+                    continue
+                mid = str(event.get("id"))
+                status = comp.get("status", {}).get("type", {})
+                state = status.get("state")
+                if state == "in":
+                    match_status = "live"
+                elif state == "post":
+                    match_status = "finished"
+                else:
+                    match_status = "scheduled"
+                def score(x):
+                    try:
+                        return int(x.get("score")) if x.get("score") is not None else None
+                    except (TypeError, ValueError):
+                        return None
+                kickoff = None
+                if event.get("date"):
+                    try:
+                        kickoff = datetime.fromisoformat(event["date"].replace("Z", "+00:00"))
+                    except ValueError:
+                        pass
+                found[mid] = MatchRow(
+                    goaloo_id=f"espn-{mid}",
+                    round=None,
+                    home_team=str(home.get("team", {}).get("displayName") or home.get("team", {}).get("name") or "Home"),
+                    away_team=str(away.get("team", {}).get("displayName") or away.get("team", {}).get("name") or "Away"),
+                    home_score=score(home),
+                    away_score=score(away),
+                    source_url=f"{base_url.rstrip('/')}/{mid}",
+                    kickoff_at=kickoff,
+                    status=match_status,
+                )
+            except (IndexError, AttributeError, TypeError):
+                continue
+        return list(found.values())
+
     def parse_analysis_html(self, html: str) -> list[OddsRow]:
         soup = BeautifulSoup(html, "lxml")
         now = datetime.now(timezone.utc)
