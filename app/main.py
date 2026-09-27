@@ -115,6 +115,54 @@ def match_dict(db: Session, match: models.Match, home: models.Team, away: models
             "status":match.status,"home_score":match.home_score,"away_score":match.away_score,
             "home_ht_score":match.home_ht_score,"away_ht_score":match.away_ht_score,"odds":odds}
 
+@app.get("/api/debug/goaloo")
+async def debug_goaloo(
+    season: str = Query("2024-2025"),
+    league_id: str = Query("36"),
+    round_no: int = Query(1, ge=1, le=60),
+):
+    url = f"https://football.goaloo.com/league/{season}/{league_id}?round={round_no}"
+    scraper = GoalooScraper()
+    try:
+        raw = await scraper._fetch(url)
+        parser = GoalooParser()
+        payload_rows = parser.parse_schedule_payloads(raw.payloads, base_url=raw.url)
+        html_rows = parser.parse_schedule_html(raw.html, base_url=raw.url)
+        rows = payload_rows or html_rows
+        return {
+            "url": raw.url,
+            "season": season,
+            "league_id": league_id,
+            "round": round_no,
+            "html_bytes": len(raw.html),
+            "payload_count": len(raw.payloads or []),
+            "payload_rows": len(payload_rows),
+            "html_rows": len(html_rows),
+            "rows": [
+                {
+                    "goaloo_id": row.goaloo_id,
+                    "home_team": row.home_team,
+                    "away_team": row.away_team,
+                    "home_score": row.home_score,
+                    "away_score": row.away_score,
+                    "kickoff_at": row.kickoff_at.isoformat() if row.kickoff_at else None,
+                    "status": row.status,
+                    "source_url": row.source_url,
+                }
+                for row in rows[:100]
+            ],
+        }
+    except Exception as exc:
+        return {
+            "url": url,
+            "season": season,
+            "league_id": league_id,
+            "round": round_no,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+    finally:
+        await scraper.close()
+
 @app.get("/api/matches")
 def matches(db: Session = Depends(get_db), limit: int = Query(300, ge=1, le=500)):
     live_first = case((models.Match.status == "live", 0), (models.Match.status == "scheduled", 1), else_=2)
