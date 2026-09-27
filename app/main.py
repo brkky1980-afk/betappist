@@ -79,7 +79,6 @@ async def refresh_live_cache_loop() -> None:
             live_cache_updated = datetime.now(timezone.utc).isoformat()
         except Exception as exc:
             live_cache_error = f"{type(exc).__name__}: {exc}"
-        
         finally:
             await scraper.close()
         await asyncio.sleep(60)
@@ -107,7 +106,7 @@ def match_dict(db: Session, match: models.Match, home: models.Team, away: models
         key=(row.market,row.phase,bookmaker)
         if key in seen: continue
         seen.add(key)
-        for label,value in ((("MS 1",row.home_odds),("MS X",row.draw_odds),("MS 2",row.away_odds))):
+        for label,value in (("MS 1",row.home_odds),("MS X",row.draw_odds),("MS 2",row.away_odds)):
             if value is not None:
                 odds.append({"label":label,"value":float(value),"market":row.market,"bookmaker":bookmaker,"captured_at":row.captured_at.isoformat()})
     return {"id":match.id,"goaloo_id":match.goaloo_id,"home_team":home.name,"away_team":away.name,
@@ -129,6 +128,17 @@ async def debug_goaloo(
         payload_rows = parser.parse_schedule_payloads(raw.payloads, base_url=raw.url)
         html_rows = parser.parse_schedule_html(raw.html, base_url=raw.url)
         rows = payload_rows or html_rows
+        payload_summaries = []
+        for payload in (raw.payloads or []):
+            if isinstance(payload, dict):
+                payload_summaries.append({
+                    "keys": list(payload.keys())[:40],
+                    "match_like_keys": [k for k in payload.keys() if "match" in k.lower() or "fixture" in k.lower() or "team" in k.lower()][:30],
+                })
+            elif isinstance(payload, list):
+                payload_summaries.append({"type":"list", "length":len(payload)})
+            else:
+                payload_summaries.append({"type":type(payload).__name__})
         return {
             "url": raw.url,
             "season": season,
@@ -138,6 +148,9 @@ async def debug_goaloo(
             "payload_count": len(raw.payloads or []),
             "payload_rows": len(payload_rows),
             "html_rows": len(html_rows),
+            "response_count": len(raw.response_meta or []),
+            "responses": (raw.response_meta or [])[-80:],
+            "payload_summaries": payload_summaries,
             "rows": [
                 {
                     "goaloo_id": row.goaloo_id,
