@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     scraper_headless: bool = True
     scraper_timeout_ms: int = 30_000
     scraper_delay_ms: int = 750
-    goaloo_live_path: str = "/football/fixture"
+    goaloo_live_path: str = "/"
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
 
