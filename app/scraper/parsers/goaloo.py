@@ -16,6 +16,8 @@ class MatchRow:
     home_ht_score: int | None = None
     away_ht_score: int | None = None
     source_url: str | None = None
+    kickoff_at: datetime | None = None
+    status: str = "scheduled"
 
 @dataclass(slots=True)
 class OddsRow:
@@ -40,12 +42,38 @@ def decimal_or_none(value: str | None) -> Decimal | None:
     except (InvalidOperation, ValueError):
         return None
 
-def ints(text: str) -> list[int]:
-    return [int(x) for x in re.findall(r"(?<!\d)(\d{1,2})(?!\d)", text)]
-
 def _match_id_from_href(href: str) -> str | None:
     m = re.search(r"(?:oddscomp|h2h|analysis|live|tips)-?(\d{5,})", href or "")
     return m.group(1) if m else None
+
+def _kickoff(text: str) -> datetime | None:
+    year = datetime.now().year
+    patterns = [
+        (r"\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\s+(\d{1,2}):(\d{2})\b", True),
+        (r"\b(\d{1,2})[-/.](\d{1,2})\s+(\d{1,2}):(\d{2})\b", False),
+    ]
+    for pattern, full_year in patterns:
+        m = re.search(pattern, text)
+        if m:
+            vals=list(map(int,m.groups()))
+            if full_year:
+                y,mo,d,h,mi=vals
+            else:
+                mo,d,h,mi=vals
+                y=year
+            try:
+                return datetime(y,mo,d,h,mi)
+            except ValueError:
+                pass
+    return None
+
+def _status(text: str, home: int | None, away: int | None) -> str:
+    low=text.lower()
+    if re.search(r"\b(live|in[- ]play|1h|2h|ht|half time|\d{1,3}\s*')\b", low):
+        return "live"
+    if home is not None and away is not None:
+        return "finished"
+    return "scheduled"
 
 class GoalooParser:
     def parse_schedule_html(self, html: str, base_url: str | None = None) -> list[MatchRow]:
@@ -76,7 +104,10 @@ class GoalooParser:
                 continue
             href = a["href"]
             source_url = urljoin(base_url, href) if base_url else href
-            found[mid] = MatchRow(mid, None, team_links[0], team_links[1], home, away, source_url=source_url)
+            found[mid] = MatchRow(
+                mid, None, team_links[0], team_links[1], home, away,
+                source_url=source_url, kickoff_at=_kickoff(text), status=_status(text, home, away)
+            )
         return list(found.values())
 
     def parse_analysis_html(self, html: str) -> list[OddsRow]:
