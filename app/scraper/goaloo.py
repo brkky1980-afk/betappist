@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 from urllib.parse import urljoin
 from app.config import settings
 from app.scraper.client import GoalooBrowser
@@ -7,6 +8,7 @@ from app.scraper.client import GoalooBrowser
 class RawPage:
     url: str
     html: str
+    payloads: list[dict] | None = None
 
 class GoalooScraper:
     def __init__(self) -> None:
@@ -18,13 +20,29 @@ class GoalooScraper:
     async def _fetch(self, url: str) -> RawPage:
         await self.browser.start()
         async with self.browser.page() as page:
+            responses = []
+            def capture(response):
+                ct = (response.headers.get("content-type") or "").lower()
+                u = response.url.lower()
+                if "json" in ct and ("goaloo" in u or "isportsapi" in u or "/api/" in u):
+                    responses.append(response)
+            page.on("response", capture)
             await page.goto(url, wait_until="domcontentloaded", timeout=settings.scraper_timeout_ms)
             try:
                 await page.wait_for_load_state("networkidle", timeout=10_000)
             except Exception:
                 pass
-            await page.wait_for_timeout(2_000)
-            return RawPage(url=url, html=await page.content())
+            await page.wait_for_timeout(4_000)
+            payloads = []
+            for response in responses[-80:]:
+                try:
+                    body = await response.body()
+                    if len(body) > 2_000_000:
+                        continue
+                    payloads.append(json.loads(body.decode("utf-8", errors="ignore")))
+                except Exception:
+                    continue
+            return RawPage(url=url, html=await page.content(), payloads=payloads)
 
     async def fetch_schedule(self, round_no: int | None = None) -> RawPage:
         url = urljoin(settings.goaloo_base_url, settings.goaloo_league_path)
