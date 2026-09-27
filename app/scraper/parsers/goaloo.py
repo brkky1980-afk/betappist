@@ -43,8 +43,14 @@ def decimal_or_none(value: str | None) -> Decimal | None:
         return None
 
 def _match_id_from_href(href: str) -> str | None:
-    m = re.search(r"(?:oddscomp|h2h|analysis|live|tips)-?(\d{5,})", href or "")
-    return m.group(1) if m else None
+    for pattern in (
+        r"(?:oddscomp|h2h|analysis|live|tips|match|detail)[^0-9]*(\\d{5,})",
+        r"/(\\d{6,})(?:[/?#]|$)",
+    ):
+        m = re.search(pattern, href or "", re.I)
+        if m:
+            return m.group(1)
+    return None
 
 def _kickoff(text: str) -> datetime | None:
     year = datetime.now().year
@@ -92,34 +98,44 @@ class GoalooParser:
         soup = BeautifulSoup(html, "lxml")
         found: dict[str, MatchRow] = {}
         for a in soup.find_all("a", href=True):
-            mid = _match_id_from_href(a["href"])
+            href = a["href"]
+            mid = _match_id_from_href(href)
             if not mid:
                 continue
-            row = a.find_parent("tr")
-            if not row:
+            container = a.find_parent("tr")
+            if container is None:
+                container = a
+                for _ in range(8):
+                    parent = container.parent
+                    if parent is None:
+                        break
+                    if len(parent.find_all("a", href=True)) >= 3:
+                        container = parent
+                        break
+                    container = parent
+            text = container.get_text(" | ", strip=True)
+            links = container.find_all("a", href=True)
+            names = []
+            for link in links:
+                name = link.get_text(" ", strip=True)
+                if not name or name.lower() in {"analysis", "odds", "h2h", "tips", "detail", "live"}:
+                    continue
+                if link is not a and _match_id_from_href(link.get("href", "")):
+                    continue
+                names.append(name)
+            names = list(dict.fromkeys(names))
+            if len(names) < 2:
                 continue
-            cells = [c.get_text(" ", strip=True) for c in row.find_all(["td", "th"])]
-            if not cells:
-                continue
-            text = " | ".join(cells)
-            score_pairs = re.findall(r"(?<!\d)(\d{1,2})\s*[-:]\s*(\d{1,2})(?!\d)", text)
+            pairs = re.findall(r"(?<!\d)(\d{1,2})\s*[-:]\s*(\d{1,2})(?!\d)", text)
             home = away = None
-            if score_pairs:
-                home, away = map(int, score_pairs[0])
-            team_links = []
-            for link in row.find_all("a", href=True):
-                t = link.get_text(" ", strip=True)
-                if t and t.lower() not in {"analysis", "odds", "h2h", "tips", "detail"}:
-                    team_links.append(t)
-            team_links = list(dict.fromkeys(team_links))
-            if len(team_links) < 2:
-                continue
-            href = a["href"]
-            source_url = urljoin(base_url, href) if base_url else href
+            if pairs:
+                home, away = map(int, pairs[0])
             kickoff = _kickoff(text)
             found[mid] = MatchRow(
-                mid, None, team_links[0], team_links[1], home, away,
-                source_url=source_url, kickoff_at=kickoff, status=_status(text, home, away, kickoff)
+                mid, None, names[0], names[1], home, away,
+                source_url=urljoin(base_url, href) if base_url else href,
+                kickoff_at=kickoff,
+                status=_status(text, home, away, kickoff),
             )
         return list(found.values())
 
