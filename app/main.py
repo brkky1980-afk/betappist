@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.db import Base, engine
+from app import models  # noqa: F401 - register SQLAlchemy models before create_all
 
 app = FastAPI(title="BetAppist API", version="0.1.0")
 

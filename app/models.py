@@ -56,10 +56,7 @@ class Bookmaker(Base):
 
 class OddsSnapshot(Base):
     __tablename__ = "odds_snapshots"
-    __table_args__ = (
-        UniqueConstraint("match_id", "bookmaker_id", "market", "phase", "captured_at",
-                         name="uq_odds_snapshot"),
-    )
+    __table_args__ = (UniqueConstraint("match_id", "bookmaker_id", "market", "phase", "captured_at", name="uq_odds_snapshot"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     match_id: Mapped[int] = mapped_column(ForeignKey("matches.id"), index=True)
     bookmaker_id: Mapped[int] = mapped_column(ForeignKey("bookmakers.id"), index=True)

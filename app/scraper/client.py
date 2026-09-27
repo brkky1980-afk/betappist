@@ -10,14 +10,18 @@ class GoalooBrowser:
         self._browser: Browser | None = None
 
     async def start(self) -> None:
+        if self._browser:
+            return
         self._pw = await async_playwright().start()
         self._browser = await self._pw.chromium.launch(headless=settings.scraper_headless)
 
     async def close(self) -> None:
         if self._browser:
             await self._browser.close()
+            self._browser = None
         if self._pw:
             await self._pw.stop()
+            self._pw = None
 
     @asynccontextmanager
     async def page(self) -> AsyncIterator[Page]:

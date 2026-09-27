@@ -27,8 +27,7 @@ class GoalooScraper:
             return RawPage(url=url, html=await page.content())
 
     async def fetch_match(self, url: str) -> RawPage:
-        if not self.browser._browser:
-            await self.browser.start()
+        await self.browser.start()
         async with self.browser.page() as page:
             await page.goto(url, wait_until="domcontentloaded")
             await page.wait_for_load_state("networkidle")
