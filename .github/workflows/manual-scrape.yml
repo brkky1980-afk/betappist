@@ -1,0 +1,35 @@
+name: Manual Scrape
+
+on:
+  workflow_dispatch:
+    inputs:
+      round:
+        description: "Goaloo round to scrape"
+        required: true
+        default: "38"
+        type: string
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright Chromium
+        run: playwright install --with-deps chromium
+
+      - name: Run Goaloo scrape
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOALOO_BASE_URL: https://football.goaloo.com
+          SCRAPER_HEADLESS: "true"
+        run: python -m app.jobs.sync --round ${{ inputs.round }}
