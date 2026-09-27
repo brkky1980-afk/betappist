@@ -139,6 +139,62 @@ class GoalooParser:
             )
         return list(found.values())
 
+    def parse_legacy_schedule_payloads(self, payloads: list[dict] | None, base_url: str | None = None) -> list[MatchRow]:
+        found = {}
+        if not payloads:
+            return []
+        def walk(obj):
+            if isinstance(obj, dict):
+                if isinstance(obj.get("ScheduleList"), list):
+                    for item in obj["ScheduleList"]:
+                        if isinstance(item, dict):
+                            yield item
+                for value in obj.values():
+                    yield from walk(value)
+            elif isinstance(obj, list):
+                for value in obj:
+                    yield from walk(value)
+        def val(obj, *keys):
+            for key in keys:
+                value = obj.get(key)
+                if value not in (None, ""):
+                    return value
+            return None
+        def to_int(value):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+        def parse_time(value):
+            if not value:
+                return None
+            text = str(value).strip()
+            if re.fullmatch(r"\d{10,13}", text):
+                try:
+                    number = int(text)
+                    return datetime.fromtimestamp(number / 1000 if number > 10000000000 else number)
+                except (ValueError, OSError):
+                    return None
+            return _kickoff(text)
+        for payload in payloads:
+            for item in walk(payload):
+                mid = val(item, "MatchId", "MatchID", "matchId", "id", "Id")
+                home = val(item, "HomeTeamName", "HomeName", "homeName", "HomeTeam", "Home")
+                away = val(item, "GuestTeamName", "AwayTeamName", "AwayName", "awayName", "GuestTeam", "Away", "Guest")
+                if mid is None or not home or not away:
+                    continue
+                mid = str(mid)
+                hs = to_int(val(item, "HomeScore", "homeScore", "HomeTeamScore"))
+                aws = to_int(val(item, "GuestScore", "AwayScore", "awayScore", "GuestTeamScore"))
+                hht = to_int(val(item, "HomeHalfScore", "homeHalfScore"))
+                aht = to_int(val(item, "GuestHalfScore", "awayHalfScore"))
+                kickoff = parse_time(val(item, "MatchTime", "matchTime", "StartTime", "Date", "date"))
+                raw_status = str(val(item, "Status", "status", "MatchStatus", "matchStatus") or "").lower()
+                status = "live" if raw_status in {"1","2","3","4","5","live","inplay"} else ("finished" if hs is not None and aws is not None or raw_status in {"-1","finished","ft"} else "scheduled")
+                source = f"{base_url.rstrip('/')}/football/match/live-{mid}" if base_url else None
+                found[mid] = MatchRow(mid, None, str(home), str(away), hs, aws, hht, aht, source_url=source, kickoff_at=kickoff, status=status)
+        return list(found.values())
+
     def parse_schedule_payloads(self, payloads: list[dict] | None, base_url: str | None = None) -> list[MatchRow]:
         found = {}
         if not payloads:
