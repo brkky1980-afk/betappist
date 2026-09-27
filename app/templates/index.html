@@ -24,11 +24,11 @@ body{background:#090d16}.no-scrollbar::-webkit-scrollbar{display:none}.no-scroll
 <div><div class="flex items-center gap-2"><span class="text-lg font-black tracking-wider text-white">BETAPPIST</span><span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-brand-accent/15 text-brand-accent border border-brand-accent/30 tracking-widest">PRO</span></div><span class="text-[10px] text-brand-textMuted tracking-wider font-semibold hidden sm:block">FOOTBALL INTELLIGENCE PLATFORM</span></div>
 </div>
 <nav class="hidden xl:flex items-center gap-1.5 bg-brand-pitch/80 p-1.5 rounded-xl border border-brand-cardBorder">
-<a class="px-4 py-2 rounded-lg text-xs font-bold bg-brand-accent text-slate-950 shadow-glow-accent" href="#canli-skor"><span class="inline-block w-2 h-2 rounded-full bg-slate-950 mr-2"></span>Canlı Skor</a>
-<a class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-brand-cardHover" href="#bulten">📅 Bülten</a>
-<a class="px-4 py-2 rounded-lg text-xs font-semibold text-emerald-400 hover:bg-emerald-500/10" href="#ai-analiz">🤖 AI Analiz <small class="bg-emerald-500/20 px-1 rounded">YENİ</small></a>
-<a class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-brand-cardHover" href="#kupon">🧾 Kuponum</a>
-<a class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-brand-cardHover" href="#profil">👤 Hesabım</a>
+<button data-view="live" class="navview px-4 py-2 rounded-lg text-xs font-bold bg-brand-accent text-slate-950"><span class="inline-block w-2 h-2 rounded-full bg-slate-950 mr-2"></span>Canlı Skor</button>
+<button data-view="archive" class="navview px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-brand-cardHover">📅 Bülten</button>
+<button data-view="ai" class="navview px-4 py-2 rounded-lg text-xs font-semibold text-emerald-400 hover:bg-emerald-500/10">🤖 AI Analiz <small class="bg-emerald-500/20 px-1 rounded">YENİ</small></button>
+<button data-view="coupon" class="navview px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-brand-cardHover">🧾 Kuponum</button>
+<button data-view="profile" class="navview px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-brand-cardHover">👤 Hesabım</button>
 </nav>
 <div class="flex items-center gap-2">
 <div class="hidden lg:block relative w-64"><input id="search" class="w-full pl-3 pr-3 py-2 bg-brand-pitch text-xs rounded-xl border border-brand-cardBorder focus:border-brand-accent focus:ring-1 focus:ring-brand-accent focus:outline-none text-slate-100" placeholder="Lig, takım veya maç ara..." type="search"></div>
@@ -73,7 +73,9 @@ body{background:#090d16}.no-scrollbar::-webkit-scrollbar{display:none}.no-scroll
 </div>
 </aside></div></main>
 
-<div id="modal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4 z-[60]"><div class="relative w-full max-w-xl bg-brand-card border border-brand-cardBorder rounded-2xl p-6 shadow-2xl"><button id="close" class="absolute right-4 top-3 text-slate-400 text-2xl">×</button><div id="detail"></div></div></div>
+<section id="archiveView" class="hidden max-w-[1600px] mx-auto px-4 lg:px-6 pb-10">
+<div class="bg-brand-card rounded-2xl border border-brand-cardBorder p-5"><div class="flex items-center justify-between mb-4"><h2 class="font-black text-xl">📅 Geçmiş Maçlar</h2><span id="archiveStatus" class="text-xs text-slate-400">Yükleniyor...</span></div><div id="archiveList" class="grid md:grid-cols-2 gap-3"></div></div></section>
+<section id="profileView" class="hidden max-w-[1600px] mx-auto px-4 lg:px-6 pb-10"><div class="bg-brand-card rounded-2xl border border-brand-cardBorder p-6"><h2 class="font-black text-xl">👤 Sistem Profili</h2><p class="text-sm text-slate-400 mt-2">Hesap altyapısı hazır. İstatistikler ve favoriler backend üzerinden bağlanabilir.</p><div id="systemStats" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5"></div></div></section><div id="modal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4 z-[60]"><div class="relative w-full max-w-xl bg-brand-card border border-brand-cardBorder rounded-2xl p-6 shadow-2xl"><button id="close" class="absolute right-4 top-3 text-slate-400 text-2xl">×</button><div id="detail"></div></div></div>
 
 <script>
 let all=[],filter='all',coupon=[];
@@ -88,6 +90,20 @@ function openMatch(id){const m=all.find(x=>x.id===id);if(!m)return;document.getE
 function addCoupon(e,id,label,value){e.stopPropagation();if(!value)return;const m=all.find(x=>x.id===id);coupon=coupon.filter(x=>x.id!==id);coupon.push({id,label,value,match:m.home_team+' - '+m.away_team});renderCoupon()}
 function renderCoupon(){document.getElementById('couponCount').textContent=coupon.length+' Maç';document.getElementById('coupon').innerHTML=coupon.length?coupon.map(x=>'<div class="flex justify-between items-center bg-brand-surface rounded-xl p-2.5 mb-2"><div><b class="text-xs">'+esc(x.match)+'</b><div class="text-[10px] text-slate-400">'+esc(x.label)+'</div></div><b class="font-mono text-brand-accent text-xs">'+x.value.toFixed(2)+'</b></div>').join(''):'Bir oran kartına tıklayarak kupona ekleyebilirsin.'}
 async function loadMatches(){document.getElementById('notice').textContent='Veriler yenileniyor...';try{const r=await fetch('/api/matches',{cache:'no-store'});if(!r.ok)throw Error('API '+r.status);all=await r.json();document.getElementById('total').textContent=all.length;document.getElementById('liveCount').textContent=all.filter(live).length;document.getElementById('today').textContent=all.filter(today).length;document.getElementById('notice').textContent='● Sistem aktif • Son güncelleme '+new Date().toLocaleTimeString('tr-TR');document.getElementById('systemFeed').textContent=all.length?'API aktif • '+all.length+' maç verisi alındı.':'API aktif fakat henüz maç kaydı yok.';render()}catch(e){document.getElementById('notice').textContent='⚠ Veri alınamadı: '+e.message;document.getElementById('systemFeed').textContent='API bağlantısı kontrol edilmeli.'}}
+document.querySelectorAll('.navview').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
+async function switchView(view){
+  document.querySelectorAll('.navview').forEach(x=>{x.classList.remove('bg-brand-accent','text-slate-950','font-bold');x.classList.add('text-slate-300','font-semibold')});
+  const active=document.querySelector('.navview[data-view="'+view+'"]'); if(active){active.classList.add('bg-brand-accent','text-slate-950','font-bold');active.classList.remove('text-slate-300','font-semibold')}
+  document.querySelector('main').classList.toggle('hidden',view!=='live');
+  document.getElementById('archiveView').classList.toggle('hidden',view!=='archive');
+  document.getElementById('profileView').classList.toggle('hidden',view!=='profile');
+  if(view==='archive') await loadArchive();
+  if(view==='profile') await loadSystem();
+  if(view==='ai'){document.querySelector('main').classList.remove('hidden');document.getElementById('ai-analiz').scrollIntoView({behavior:'smooth'});}
+  if(view==='coupon'){document.querySelector('main').classList.remove('hidden');document.getElementById('kupon').scrollIntoView({behavior:'smooth'});}
+}
+async function loadArchive(){const r=await fetch('/api/archive?limit=200',{cache:'no-store'});const rows=await r.json();document.getElementById('archiveStatus').textContent=rows.length+' geçmiş maç';document.getElementById('archiveList').innerHTML=rows.length?rows.map(m=>'<div class="bg-brand-surface rounded-xl p-3 border border-brand-cardBorder flex justify-between"><div><b class="text-sm">'+esc(m.home_team)+' - '+esc(m.away_team)+'</b><div class="text-[10px] text-slate-400 mt-1">'+(m.kickoff_at?new Date(m.kickoff_at).toLocaleDateString('tr-TR'):'—')+' • Round '+(m.round??'—')+'</div></div><strong class="font-mono text-brand-accent">'+(m.home_score??'–')+' : '+(m.away_score??'–')+'</strong></div>').join(''):'<div class="text-slate-400 text-sm">Henüz geçmiş maç verisi yok. Tarihsel senkronizasyon çalıştırılınca burada birikecek.</div>'}
+async function loadSystem(){const r=await fetch('/api/system',{cache:'no-store'});const s=await r.json();document.getElementById('systemStats').innerHTML=[['Maç',s.matches],['Takım',s.teams],['Milli Takım',s.national_teams],['Oran Snapshot',s.odds]].map(x=>'<div class="bg-brand-surface rounded-xl p-4 border border-brand-cardBorder"><span class="text-xs text-slate-400">'+x[0]+'</span><b class="block text-2xl mt-1">'+x[1]+'</b></div>').join('')}
 document.getElementById('refresh').onclick=loadMatches;document.getElementById('search').oninput=render;document.getElementById('close').onclick=()=>document.getElementById('modal').classList.add('hidden');document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')document.getElementById('modal').classList.add('hidden')};document.querySelectorAll('.filter').forEach(b=>b.onclick=()=>{document.querySelectorAll('.filter').forEach(x=>x.className='filter px-4 py-2 rounded-xl text-xs bg-brand-card text-slate-300 border border-brand-cardBorder whitespace-nowrap');b.className='filter px-4 py-2 rounded-xl text-xs font-bold bg-brand-accent text-slate-950 whitespace-nowrap';filter=b.dataset.filter;render()});
 setInterval(()=>document.getElementById('clock').textContent=new Date().toLocaleTimeString('tr-TR'),1000);setInterval(loadMatches,30000);loadMatches();
 </script>
