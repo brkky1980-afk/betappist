@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal, InvalidOperation
 import re
 from urllib.parse import urljoin
@@ -58,6 +58,14 @@ def _kickoff(text: str) -> datetime | None:
             vals=list(map(int,m.groups()))
             if full_year:
                 y,mo,d,h,mi=vals
+            elif full_year == "day":
+                d,h,mi=vals
+                mo=datetime.now().month
+                y=year
+            elif full_year == "month":
+                d,month,h,mi=vals
+                mo=month
+                y=year
             else:
                 mo,d,h,mi=vals
                 y=year
@@ -67,12 +75,16 @@ def _kickoff(text: str) -> datetime | None:
                 pass
     return None
 
-def _status(text: str, home: int | None, away: int | None) -> str:
+def _status(text: str, home: int | None, away: int | None, kickoff: datetime | None = None) -> str:
     low=text.lower()
     if re.search(r"\b(live|in[- ]play|1h|2h|ht|half time|\d{1,3}\s*')\b", low):
         return "live"
     if home is not None and away is not None:
         return "finished"
+    if kickoff is not None:
+        now = datetime.now()
+        if kickoff <= now <= kickoff + timedelta(minutes=135):
+            return "live"
     return "scheduled"
 
 class GoalooParser:
@@ -104,9 +116,10 @@ class GoalooParser:
                 continue
             href = a["href"]
             source_url = urljoin(base_url, href) if base_url else href
+            kickoff = _kickoff(text)
             found[mid] = MatchRow(
                 mid, None, team_links[0], team_links[1], home, away,
-                source_url=source_url, kickoff_at=_kickoff(text), status=_status(text, home, away)
+                source_url=source_url, kickoff_at=kickoff, status=_status(text, home, away, kickoff)
             )
         return list(found.values())
 
