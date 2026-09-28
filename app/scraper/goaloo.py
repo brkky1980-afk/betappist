@@ -18,14 +18,14 @@ class GoalooScraper:
     async def close(self) -> None:
         await self.browser.close()
 
-    async def _fetch(self, url: str) -> RawPage:
+    async def _fetch(self, url: str, odds_mode: bool = False) -> RawPage:
         await self.browser.start()
         async with self.browser.page() as page:
             responses = []
 
             def capture(response):
                 u = response.url.lower()
-                if any(token in u for token in ("goaloo", "isportsapi", "/api/", "livescore", "football")):
+                if any(token in u for token in ("goaloo", "isportsapi", "/api/", "livescore", "football", "odds")):
                     responses.append(response)
 
             page.on("response", capture)
@@ -34,11 +34,25 @@ class GoalooScraper:
                 await page.wait_for_load_state("networkidle", timeout=10_000)
             except Exception:
                 pass
-            await page.wait_for_timeout(4_000)
+            await page.wait_for_timeout(2_500)
+
+            if odds_mode:
+                for bookmaker in ("Bet365", "Sbobet", "Crown"):
+                    try:
+                        row = page.locator("tr", has_text=bookmaker).first
+                        if await row.count():
+                            changes = row.get_by_text("Changes", exact=True).first
+                            if await changes.count():
+                                await changes.click()
+                                await page.wait_for_timeout(500)
+                                await page.keyboard.press("Escape")
+                    except Exception:
+                        continue
+                await page.wait_for_timeout(1_000)
 
             payloads = []
             response_meta = []
-            for response in responses[-160:]:
+            for response in responses[-250:]:
                 try:
                     body = await response.body()
                     response_meta.append({
@@ -47,9 +61,11 @@ class GoalooScraper:
                         "content_type": response.headers.get("content-type"),
                         "bytes": len(body),
                     })
-                    if len(body) > 2_000_000:
-                        continue
-                    payloads.append(json.loads(body.decode("utf-8", errors="ignore")))
+                    if len(body) <= 2_000_000:
+                        try:
+                            payloads.append(json.loads(body.decode("utf-8", errors="ignore")))
+                        except Exception:
+                            pass
                 except Exception as exc:
                     response_meta.append({
                         "url": response.url,
@@ -58,12 +74,7 @@ class GoalooScraper:
                         "error": type(exc).__name__,
                     })
 
-            return RawPage(
-                url=url,
-                html=await page.content(),
-                payloads=payloads,
-                response_meta=response_meta,
-            )
+            return RawPage(url=url, html=await page.content(), payloads=payloads, response_meta=response_meta)
 
     async def fetch_schedule(self, round_no: int | None = None) -> RawPage:
         url = urljoin(settings.goaloo_base_url, settings.goaloo_league_path)
@@ -77,4 +88,4 @@ class GoalooScraper:
         return await self._fetch(url)
 
     async def fetch_match(self, url: str) -> RawPage:
-        return await self._fetch(url)
+        return await self._fetch(url, odds_mode=True)
