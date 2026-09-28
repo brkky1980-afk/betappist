@@ -127,7 +127,7 @@ async def debug_goaloo(
         parser = GoalooParser()
         payload_rows = parser.parse_legacy_schedule_payloads(raw.payloads, base_url=raw.url) or parser.parse_schedule_payloads(raw.payloads, base_url=raw.url)
         html_rows = parser.parse_schedule_html(raw.html, base_url=raw.url)
-        rows = payload_rows or html_rows
+        rows = [row for row in payload_rows if row.round == round_no] if payload_rows else html_rows
         schedule_samples = []
         schedule_info = {}
         for payload in (raw.payloads or []):
@@ -162,6 +162,7 @@ async def debug_goaloo(
             "html_bytes": len(raw.html),
             "payload_count": len(raw.payloads or []),
             "payload_rows": len(payload_rows),
+            "round_rows": len([row for row in payload_rows if row.round == round_no]),
             "html_rows": len(html_rows),
             "response_count": len(raw.response_meta or []),
             "responses": (raw.response_meta or [])[-80:],
