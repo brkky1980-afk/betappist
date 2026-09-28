@@ -80,7 +80,9 @@ async def run(rounds: list[int]) -> None:
                     match = save_match(session, row, season)
                     if row.source_url:
                         detail = await scraper.fetch_match(row.source_url)
-                        saved += save_odds(session, match, parser.parse_analysis_html(detail.html))
+                        odds_rows = parser.parse_analysis_html(detail.html)
+                        odds_rows = [o for o in odds_rows if o.bookmaker in {"Bet365", "Sbobet", "Crown"}]
+                        saved += save_odds(session, match, odds_rows)
                 session.commit()
         with SessionLocal() as session:
             r = session.get(ScrapeRun, run_row.id)
