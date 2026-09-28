@@ -39,7 +39,7 @@ async def refresh_live_cache_loop() -> None:
         try:
             raw = await scraper.fetch_live_fixtures()
             parser = GoalooParser()
-            rows = parser.parse_schedule_payloads(raw.payloads, base_url=raw.url)
+            rows = parser.parse_legacy_schedule_payloads(raw.payloads, base_url=raw.url) or parser.parse_schedule_payloads(raw.payloads, base_url=raw.url)
             if not rows:
                 rows = parser.parse_schedule_html(raw.html, base_url=raw.url)
             live_source_url = raw.url
