@@ -74,7 +74,8 @@ async def run(rounds: list[int]) -> None:
                 raw = await scraper.fetch_schedule(round_no)
                 matches = parser.parse_legacy_schedule_payloads(raw.payloads, base_url=raw.url) or parser.parse_schedule_payloads(raw.payloads, base_url=raw.url) or parser.parse_schedule_html(raw.html, base_url=raw.url)
                 for row in matches:
-                    row.round = round_no
+                    if row.round is None:
+                        row.round = round_no
                     seen += 1
                     match = save_match(session, row, season)
                     if row.source_url:
