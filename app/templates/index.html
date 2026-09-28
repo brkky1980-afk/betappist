@@ -44,6 +44,21 @@ body{background:#090d16}.no-scrollbar::-webkit-scrollbar{display:none}.no-scroll
 <div class="bg-brand-card/90 border border-brand-cardBorder p-4 rounded-2xl"><span class="text-[10px] font-semibold text-brand-textMuted uppercase tracking-wider">GÜNCEL SAAT & MOTOR</span><div class="text-xl font-black font-mono text-sky-400 mt-1" id="clock">--:--:--</div><div class="text-xs text-emerald-400">● Otomatik Veri Akışı</div></div>
 </section>
 
+<section class="bg-brand-card/90 border border-brand-cardBorder rounded-2xl p-4">
+  <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+    <div>
+      <div class="text-[10px] font-bold text-brand-accent uppercase tracking-wider">VERİ MERKEZİ</div>
+      <div class="text-sm font-black text-white mt-1">Goaloo tarihsel veri senkronizasyonu</div>
+      <div id="syncStatus" class="text-xs text-slate-400 mt-1">Hazır — önce 1. hafta ile test edeceğiz.</div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button id="sync1" class="px-3 py-2 rounded-xl bg-brand-accent text-slate-950 text-xs font-black">1. HAFTA</button>
+      <button id="sync10" class="px-3 py-2 rounded-xl bg-brand-surface border border-brand-cardBorder text-xs font-bold text-white">1–10</button>
+      <button id="sync38" class="px-3 py-2 rounded-xl bg-brand-surface border border-brand-cardBorder text-xs font-bold text-white">1–38</button>
+    </div>
+  </div>
+</section>
+
 <div class="flex items-center justify-between border-b border-brand-cardBorder/70 pb-3 gap-3">
 <nav class="flex items-center gap-2 overflow-x-auto no-scrollbar" id="filters">
 <button data-filter="all" class="filter px-4 py-2 rounded-xl text-xs font-bold bg-brand-accent text-slate-950 whitespace-nowrap">Tümü</button>
@@ -89,6 +104,33 @@ function render(){const q=(document.getElementById('search')?.value||'').toLower
 function openMatch(id){const m=all.find(x=>x.id===id);if(!m)return;document.getElementById('detail').innerHTML='<p class="text-[10px] text-brand-accent font-bold tracking-widest">MATCH DETAIL</p><h2 class="text-2xl font-black mt-2">'+esc(m.home_team)+' <span class="text-slate-500">vs</span> '+esc(m.away_team)+'</h2><div class="text-5xl font-black font-mono text-center my-7">'+(m.home_score??'–')+' <i class="text-slate-500 not-italic text-3xl">:</i> '+(m.away_score??'–')+'</div><div class="space-y-1 text-sm"><div class="flex justify-between border-t border-brand-cardBorder py-3 text-slate-400"><span>Başlangıç</span><b class="text-white">'+(m.kickoff_at?new Date(m.kickoff_at).toLocaleString('tr-TR'):'—')+'</b></div><div class="flex justify-between border-t border-brand-cardBorder py-3 text-slate-400"><span>Durum</span><b class="text-white">'+esc(m.status||'scheduled')+'</b></div><div class="flex justify-between border-t border-brand-cardBorder py-3 text-slate-400"><span>Round</span><b class="text-white">'+(m.round??'—')+'</b></div></div>';document.getElementById('modal').classList.remove('hidden');document.getElementById('modal').classList.add('flex')}
 function addCoupon(e,id,label,value){e.stopPropagation();if(!value)return;const m=all.find(x=>x.id===id);coupon=coupon.filter(x=>x.id!==id);coupon.push({id,label,value,match:m.home_team+' - '+m.away_team});renderCoupon()}
 function renderCoupon(){document.getElementById('couponCount').textContent=coupon.length+' Maç';document.getElementById('coupon').innerHTML=coupon.length?coupon.map(x=>'<div class="flex justify-between items-center bg-brand-surface rounded-xl p-2.5 mb-2"><div><b class="text-xs">'+esc(x.match)+'</b><div class="text-[10px] text-slate-400">'+esc(x.label)+'</div></div><b class="font-mono text-brand-accent text-xs">'+x.value.toFixed(2)+'</b></div>').join(''):'Bir oran kartına tıklayarak kupona ekleyebilirsin.'}
+async function startSync(fromRound,toRound){
+  const el=document.getElementById('syncStatus');
+  el.textContent='Senkronizasyon başlatılıyor...';
+  try{
+    const r=await fetch('/api/admin/sync/start?from_round='+fromRound+'&to_round='+toRound,{method:'POST'});
+    const data=await r.json();
+    if(!r.ok) throw Error(data.detail||('API '+r.status));
+    el.textContent='Çalışıyor: Round '+fromRound+'–'+toRound+' • pencereyi açık bırak.';
+    pollSync();
+  }catch(e){el.textContent='⚠ '+e.message}
+}
+async function pollSync(){
+  const el=document.getElementById('syncStatus');
+  try{
+    const r=await fetch('/api/admin/sync/status',{cache:'no-store'}); const s=await r.json();
+    if(s.status==='running'){
+      const ls=s.last_scrape;
+      el.textContent='⏳ Çalışıyor: '+(ls?(ls.items_seen||0)+' maç görüldü, '+(ls.items_saved||0)+' oran kaydı':'veri çekiliyor')+'...';
+      setTimeout(pollSync,3000);
+    }else if(s.status==='success'){
+      el.textContent='✓ Tamamlandı: '+((s.last_scrape&&s.last_scrape.items_seen)||0)+' maç, '+((s.last_scrape&&s.last_scrape.items_saved)||0)+' oran kaydı.';
+      loadMatches();
+    }else if(s.status==='failed'){
+      el.textContent='⚠ Hata: '+(s.error||'bilinmeyen hata');
+    }
+  }catch(e){el.textContent='Durum okunamadı: '+e.message}
+}
 async function loadMatches(){document.getElementById('notice').textContent='Veriler yenileniyor...';try{const r=await fetch('/api/matches',{cache:'no-store'});if(!r.ok)throw Error('API '+r.status);all=await r.json();document.getElementById('total').textContent=all.length;document.getElementById('liveCount').textContent=all.filter(live).length;document.getElementById('today').textContent=all.filter(today).length;document.getElementById('notice').textContent='● Sistem aktif • Son güncelleme '+new Date().toLocaleTimeString('tr-TR');document.getElementById('systemFeed').textContent=all.length?'API aktif • '+all.length+' maç verisi alındı.':'API aktif fakat henüz maç kaydı yok.';render()}catch(e){document.getElementById('notice').textContent='⚠ Veri alınamadı: '+e.message;document.getElementById('systemFeed').textContent='API bağlantısı kontrol edilmeli.'}}
 document.querySelectorAll('.navview').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
 async function switchView(view){
@@ -104,6 +146,9 @@ async function switchView(view){
 }
 async function loadArchive(){const r=await fetch('/api/archive?limit=200',{cache:'no-store'});const rows=await r.json();document.getElementById('archiveStatus').textContent=rows.length+' geçmiş maç';document.getElementById('archiveList').innerHTML=rows.length?rows.map(m=>'<div class="bg-brand-surface rounded-xl p-3 border border-brand-cardBorder flex justify-between"><div><b class="text-sm">'+esc(m.home_team)+' - '+esc(m.away_team)+'</b><div class="text-[10px] text-slate-400 mt-1">'+(m.kickoff_at?new Date(m.kickoff_at).toLocaleDateString('tr-TR'):'—')+' • Round '+(m.round??'—')+'</div></div><strong class="font-mono text-brand-accent">'+(m.home_score??'–')+' : '+(m.away_score??'–')+'</strong></div>').join(''):'<div class="text-slate-400 text-sm">Henüz geçmiş maç verisi yok. Tarihsel senkronizasyon çalıştırılınca burada birikecek.</div>'}
 async function loadSystem(){const r=await fetch('/api/system',{cache:'no-store'});const s=await r.json();document.getElementById('systemStats').innerHTML=[['Maç',s.matches],['Takım',s.teams],['Milli Takım',s.national_teams],['Oran Snapshot',s.odds]].map(x=>'<div class="bg-brand-surface rounded-xl p-4 border border-brand-cardBorder"><span class="text-xs text-slate-400">'+x[0]+'</span><b class="block text-2xl mt-1">'+x[1]+'</b></div>').join('')}
+document.getElementById('sync1').onclick=()=>startSync(1,1);
+document.getElementById('sync10').onclick=()=>startSync(1,10);
+document.getElementById('sync38').onclick=()=>startSync(1,38);
 document.getElementById('refresh').onclick=loadMatches;document.getElementById('search').oninput=render;document.getElementById('close').onclick=()=>document.getElementById('modal').classList.add('hidden');document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')document.getElementById('modal').classList.add('hidden')};document.querySelectorAll('.filter').forEach(b=>b.onclick=()=>{document.querySelectorAll('.filter').forEach(x=>x.className='filter px-4 py-2 rounded-xl text-xs bg-brand-card text-slate-300 border border-brand-cardBorder whitespace-nowrap');b.className='filter px-4 py-2 rounded-xl text-xs font-bold bg-brand-accent text-slate-950 whitespace-nowrap';filter=b.dataset.filter;render()});
 setInterval(()=>document.getElementById('clock').textContent=new Date().toLocaleTimeString('tr-TR'),1000);setInterval(loadMatches,30000);loadMatches();
 </script>
