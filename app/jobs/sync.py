@@ -72,7 +72,7 @@ async def run(rounds: list[int]) -> None:
             session.commit()
             for round_no in rounds:
                 raw = await scraper.fetch_schedule(round_no)
-                matches = parser.parse_schedule_html(raw.html, base_url=raw.url)
+                matches = parser.parse_legacy_schedule_payloads(raw.payloads, base_url=raw.url) or parser.parse_schedule_payloads(raw.payloads, base_url=raw.url) or parser.parse_schedule_html(raw.html, base_url=raw.url)
                 for row in matches:
                     row.round = round_no
                     seen += 1
