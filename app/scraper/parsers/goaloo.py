@@ -140,59 +140,67 @@ class GoalooParser:
         return list(found.values())
 
     def parse_legacy_schedule_payloads(self, payloads: list[dict] | None, base_url: str | None = None) -> list[MatchRow]:
+        """Parse Goaloo ScheduleList: R_n -> [match_id, league_id, status, time, home_id, away_id, score, ht_score, ...]."""
         found = {}
         if not payloads:
             return []
-        def walk(obj):
-            if isinstance(obj, dict):
-                if isinstance(obj.get("ScheduleList"), list):
-                    for item in obj["ScheduleList"]:
-                        if isinstance(item, dict):
-                            yield item
-                for value in obj.values():
-                    yield from walk(value)
-            elif isinstance(obj, list):
-                for value in obj:
-                    yield from walk(value)
-        def val(obj, *keys):
-            for key in keys:
-                value = obj.get(key)
-                if value not in (None, ""):
-                    return value
-            return None
-        def to_int(value):
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                return None
-        def parse_time(value):
-            if not value:
-                return None
-            text = str(value).strip()
-            if re.fullmatch(r"\d{10,13}", text):
-                try:
-                    number = int(text)
-                    return datetime.fromtimestamp(number / 1000 if number > 10000000000 else number)
-                except (ValueError, OSError):
-                    return None
-            return _kickoff(text)
+
+        def team_map(value, out):
+            if isinstance(value, dict):
+                for k, v in value.items():
+                    if str(k).isdigit() and isinstance(v, str) and v.strip():
+                        out[str(k)] = v.strip()
+                tid = next((value.get(k) for k in ("TeamID","TeamId","teamId","teamID","id","Id") if value.get(k) is not None), None)
+                name = next((value.get(k) for k in ("TeamName","teamName","name","Name","ShortName")) if isinstance(value.get(k), str) else None, None)
+                if tid is not None and name:
+                    out[str(tid)] = name.strip()
+                for v in value.values():
+                    team_map(v, out)
+            elif isinstance(value, list):
+                for v in value:
+                    if isinstance(v, (list, tuple)) and len(v) >= 2 and str(v[0]).isdigit() and isinstance(v[1], str):
+                        out[str(v[0])] = v[1].strip()
+                    team_map(v, out)
+
+        def rounds(value):
+            if isinstance(value, dict):
+                for k, v in value.items():
+                    m = re.fullmatch(r"R_(\d+)", str(k))
+                    if m and isinstance(v, list):
+                        yield int(m.group(1)), v
+                    else:
+                        yield from rounds(v)
+            elif isinstance(value, list):
+                for v in value:
+                    yield from rounds(v)
+
+        def pair(value):
+            m = re.search(r"(?<!\d)(\d{1,2})\s*[-:]\s*(\d{1,2})(?!\d)", str(value or ""))
+            return (int(m.group(1)), int(m.group(2))) if m else (None, None)
+
         for payload in payloads:
-            for item in walk(payload):
-                mid = val(item, "MatchId", "MatchID", "matchId", "id", "Id")
-                home = val(item, "HomeTeamName", "HomeName", "homeName", "HomeTeam", "Home")
-                away = val(item, "GuestTeamName", "AwayTeamName", "AwayName", "awayName", "GuestTeam", "Away", "Guest")
-                if mid is None or not home or not away:
-                    continue
-                mid = str(mid)
-                hs = to_int(val(item, "HomeScore", "homeScore", "HomeTeamScore"))
-                aws = to_int(val(item, "GuestScore", "AwayScore", "awayScore", "GuestTeamScore"))
-                hht = to_int(val(item, "HomeHalfScore", "homeHalfScore"))
-                aht = to_int(val(item, "GuestHalfScore", "awayHalfScore"))
-                kickoff = parse_time(val(item, "MatchTime", "matchTime", "StartTime", "Date", "date"))
-                raw_status = str(val(item, "Status", "status", "MatchStatus", "matchStatus") or "").lower()
-                status = "live" if raw_status in {"1","2","3","4","5","live","inplay"} else ("finished" if hs is not None and aws is not None or raw_status in {"-1","finished","ft"} else "scheduled")
-                source = f"{base_url.rstrip('/')}/football/match/live-{mid}" if base_url else None
-                found[mid] = MatchRow(mid, None, str(home), str(away), hs, aws, hht, aht, source_url=source, kickoff_at=kickoff, status=status)
+            if not isinstance(payload, dict) or "ScheduleList" not in payload:
+                continue
+            teams = {}
+            team_map(payload.get("TeamInfo"), teams)
+            for round_no, items in rounds(payload.get("ScheduleList")):
+                for row in items:
+                    if not isinstance(row, (list, tuple)) or len(row) < 8:
+                        continue
+                    mid = str(row[0])
+                    if not mid.isdigit() or mid in found:
+                        continue
+                    hs, aws = pair(row[6])
+                    hht, aht = pair(row[7])
+                    state = str(row[2])
+                    status = "live" if state in {"1","2","3","4","5","-13"} else "finished" if state in {"-1","-12"} else "cancelled" if state == "-10" else "scheduled"
+                    try:
+                        kickoff = datetime.strptime(str(row[3]), "%Y-%m-%d %H:%M")
+                    except ValueError:
+                        kickoff = _kickoff(str(row[3]))
+                    home_id, away_id = str(row[4]), str(row[5])
+                    source = f"{base_url.rstrip('/')}/football/match/{mid}" if base_url else None
+                    found[mid] = MatchRow(mid, round_no, teams.get(home_id, f"Team {home_id}"), teams.get(away_id, f"Team {away_id}"), hs, aws, hht, aht, source, kickoff, status)
         return list(found.values())
 
     def parse_schedule_payloads(self, payloads: list[dict] | None, base_url: str | None = None) -> list[MatchRow]:
