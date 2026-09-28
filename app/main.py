@@ -129,9 +129,19 @@ async def debug_goaloo(
         html_rows = parser.parse_schedule_html(raw.html, base_url=raw.url)
         rows = payload_rows or html_rows
         schedule_samples = []
+        schedule_info = {}
         for payload in (raw.payloads or []):
-            if isinstance(payload, dict) and isinstance(payload.get("ScheduleList"), list):
-                schedule_samples = payload["ScheduleList"][:5]
+            if isinstance(payload, dict) and "ScheduleList" in payload:
+                value = payload.get("ScheduleList")
+                schedule_info = {
+                    "type": type(value).__name__,
+                    "length": len(value) if hasattr(value, "__len__") else None,
+                    "repr": repr(value)[:5000],
+                }
+                if isinstance(value, list):
+                    schedule_samples = value[:5]
+                elif isinstance(value, dict):
+                    schedule_samples = [value]
                 break
         payload_summaries = []
         for payload in (raw.payloads or []):
@@ -156,7 +166,7 @@ async def debug_goaloo(
             "response_count": len(raw.response_meta or []),
             "responses": (raw.response_meta or [])[-80:],
             "payload_summaries": payload_summaries,
-            "schedule_sample": schedule_samples,
+            "schedule_sample": schedule_samples,\n            "schedule_info": schedule_info,
             "rows": [
                 {
                     "goaloo_id": row.goaloo_id,
