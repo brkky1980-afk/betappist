@@ -2,7 +2,7 @@ import asyncio
 import httpx
 from pathlib import Path
 from datetime import datetime, timezone
-from fastapi import Depends, FastAPI, Query
+from fastapi import Depends, FastAPI, Query, Header, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, func, case
@@ -25,6 +25,8 @@ live_html_bytes: int = 0
 live_rows: int = 0
 live_source: str | None = None
 live_task: asyncio.Task | None = None
+sync_task: asyncio.Task | None = None
+sync_state = {"status": "idle", "error": None}
 
 @app.on_event("startup")
 async def startup() -> None:
