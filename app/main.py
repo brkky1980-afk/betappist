@@ -116,6 +116,42 @@ def match_dict(db: Session, match: models.Match, home: models.Team, away: models
             "status":match.status,"home_score":match.home_score,"away_score":match.away_score,
             "home_ht_score":match.home_ht_score,"away_ht_score":match.away_ht_score,"odds":odds}
 
+@app.post("/api/admin/sync/start")
+async def start_sync(from_round: int = Query(1, ge=1, le=38), to_round: int = Query(1, ge=1, le=38)):
+    global sync_task, sync_state
+    if from_round > to_round:
+        raise HTTPException(status_code=400, detail="from_round must be <= to_round")
+    if sync_task and not sync_task.done():
+        return {"status": "running", **sync_state}
+    rounds = list(range(from_round, to_round + 1))
+    async def worker():
+        global sync_state, sync_task
+        from app.jobs.sync import run as run_sync
+        sync_state = {"status": "running", "from_round": from_round, "to_round": to_round, "error": None}
+        try:
+            await run_sync(rounds)
+            sync_state["status"] = "success"
+        except Exception as exc:
+            sync_state["status"] = "failed"
+            sync_state["error"] = f"{type(exc).__name__}: {exc}"
+        finally:
+            sync_task = None
+    sync_task = asyncio.create_task(worker())
+    return {"status": "started", "from_round": from_round, "to_round": to_round}
+
+@app.get("/api/admin/sync/status")
+async def sync_status():
+    state = dict(sync_state)
+    with SessionLocal() as session:
+        latest = session.scalar(select(models.ScrapeRun).order_by(models.ScrapeRun.id.desc()))
+        if latest:
+            state["last_scrape"] = {
+                "status": latest.status,
+                "items_seen": latest.items_seen or 0,
+                "items_saved": latest.items_saved or 0
+            }
+    return state
+
 @app.get("/api/debug/goaloo")
 async def debug_goaloo(
     season: str = Query("2024-2025"),
